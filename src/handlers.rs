@@ -123,8 +123,8 @@ pub fn handle_init(init: Shell) {
                 "
 function {cmd}
     set returned (proj-cmd $argv)
-    if string match -r '^x\\ ' $returned
-        eval (string sub -l 2 $returned)
+    if string match -qr '^x\\ ' $returned
+        eval (string sub -s 3 $returned)
     else
         echo $returned
     end
