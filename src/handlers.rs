@@ -101,11 +101,13 @@ pub fn handle_setup(setup: SetupProj) {
 }
 
 pub fn handle_init(init: Shell) {
+    let cmd = init.cmd.unwrap_or(String::from("proj"));
+
     match init.shell.as_str() {
         "zsh" | "bash" => {
             println!(
                 "
-proj() {{
+{cmd}() {{
   returned=$(proj-cmd $@)
   if [[ $returned == x\\ * ]]; then
     eval ${{returned:2}}
@@ -119,7 +121,7 @@ proj() {{
         "fish" => {
             println!(
                 "
-function proj
+function {cmd}
     set returned (proj-cmd $argv)
     if string match -r '^x\\ ' $returned
         eval (string sub -l 2 $returned)

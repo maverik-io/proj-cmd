@@ -66,5 +66,9 @@ pub struct SetupProj {
 
 #[derive(Debug, Args)]
 pub struct Shell {
+    /// Shell name (`zsh`, `bash`, `fish`)
     pub shell: String,
+
+    /// Name of command to use (Defaults to `proj`)
+    pub cmd: Option<String>,
 }
