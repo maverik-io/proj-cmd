@@ -6,6 +6,7 @@ A simple project organizer written in rust using clap.
 
 ### Step 1
 install the `proj-cmd` command -:
+
 ```zsh
 cargo install proj-cmd
 ```
@@ -16,6 +17,7 @@ cargo install proj-cmd
 <details>
 <summary>zsh</summary>
 Add the following to your shell's config file -:
+
 ```zsh
 eval "$(proj-cmd init zsh)"
 ```
@@ -24,6 +26,7 @@ eval "$(proj-cmd init zsh)"
 <details>
 <summary>bash</summary>
 Add the following to your shell's config file -:
+
 ```
 eval "$(proj-cmd init bash)"
 ```
@@ -32,6 +35,7 @@ eval "$(proj-cmd init bash)"
 <details>
 <summary>fish</summary>
 Add the following to your shell's config file -:
+
 ```
 eval "$(proj-cmd init fish)"
 ```
