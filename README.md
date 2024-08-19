@@ -27,7 +27,7 @@ eval "$(proj-cmd init zsh)"
 <summary>bash</summary>
 Add the following to your shell's config file -:
 
-```
+```zsh
 eval "$(proj-cmd init bash)"
 ```
 </details>
@@ -36,7 +36,7 @@ eval "$(proj-cmd init bash)"
 <summary>fish</summary>
 Add the following to your shell's config file -:
 
-```
+```zsh
 eval "$(proj-cmd init fish)"
 ```
 </details>
@@ -46,7 +46,7 @@ eval "$(proj-cmd init fish)"
 
 run this command `proj-cmd init nu | save -f ~/.proj.nu`
 Add the following to your shell's config file -:
-```
+```zsh
 source ~/.proj.nu
 ```
 </details>
