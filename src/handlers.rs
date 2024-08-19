@@ -6,34 +6,61 @@ use std::path::Path;
 use std::process::exit;
 
 pub fn handle_goto(projpath: String, goto: GotoProj) {
-    if goto.project.is_none() {
-        println!("x cd {projpath}/{}", goto.proj_group);
+    let path = format!(
+        "{}/{}/{}",
+        projpath,
+        goto.proj_group,
+        goto.project.unwrap_or("".to_string())
+    );
+    if Path::new(&path).exists() {
+        println!("x cd {:?}", path);
     } else {
-        println!(
-            "x cd {projpath}/{}/{}",
-            goto.proj_group,
-            goto.project.unwrap()
-        );
+        println!("Error: Proj group or project does not exist");
     }
 }
 
 pub fn handle_list(projpath: String, list: ListProj) {
-    let proj_to_list = list.proj_group;
-    let path = Path::new(&projpath).join(proj_to_list);
+    let path;
+    let proj_to_list = list.proj_group.clone();
+    let chr;
+    if proj_to_list.is_none() {
+        chr = '󰾂';
+        path = Path::new(&projpath).join("");
+    } else {
+        chr = '󰆧';
+        path = Path::new(&projpath).join(&proj_to_list.unwrap());
+    }
 
     match fs::read_dir(&path) {
         Ok(entries) => {
+            let mut maxlen = 10;
+            let mut names = Vec::new();
             for entry in entries {
                 if let Ok(dir) = entry {
                     if dir.path().is_dir() {
                         let name_to_print = dir.file_name();
-                        println!(" 󰆧  {}", name_to_print.to_str().unwrap());
+                        if name_to_print.len() > maxlen {
+                            maxlen = name_to_print.len();
+                        }
+                        names.push(name_to_print);
                     }
                 }
             }
+
+            let bot = format!("╰{}╯", "─".repeat(maxlen + 4));
+            let top = format!("╭{}╮", "─".repeat(maxlen + 4));
+
+            println!("{}", top);
+            for name in names {
+                println!("│ {chr} {:<maxlen$} │", name.to_str().unwrap());
+            }
+            println!("{}", bot);
         }
         Err(e) => {
-            println!("Error: {}", e);
+            println!(
+                "Error: No such proj group `{}`\n{e}",
+                list.proj_group.unwrap_or("Huh?".to_string())
+            );
             exit(1)
         }
     }
@@ -132,8 +159,23 @@ end
 "
             )
         }
+        "nu" => {
+            println!(
+                "
+def --env {cmd} [ ...args ] {{
+    let returned = (proj-cmd ...$args)
+
+    if ($returned | str starts-with \"x \") {{
+        cd $returned  
+    }} else {{
+        echo $returned
+    }}
+}}
+"
+            )
+        }
         _ => {
-            println!("Error: Only zsh, bash and fish are supported currently :( ");
+            println!("Error: Only zsh, bash, nu and fish are supported currently :( ");
             exit(1)
         }
     }

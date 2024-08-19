@@ -1,7 +1,12 @@
 use clap::{Args, Parser, Subcommand};
 
 #[derive(Debug, Parser)]
-#[clap(author, version, about)]
+#[command(author = "Joseph Chacko <josephchacko2006@gmail.com>")]
+#[command(version = "0.1.2")]
+#[command(
+    help_template = "{name} v{version}\n{author-section} {about-section}\n{usage-heading} {usage} \n\n{all-args}"
+)]
+#[command(about, long_about = None)]
 pub struct ProjArgs {
     #[clap(subcommand)]
     pub action: Action,
@@ -18,13 +23,13 @@ pub enum Action {
     /// Create a new project in specified proj group
     Create(CreateNewProject),
 
-    /// List all projects in specified proj group
+    /// List all proj_groups or projects in specified proj group
     List(ListProj),
 
     /// Setup the proj command
     Setup(SetupProj),
 
-    /// Add this to the end of your shell's `rc`
+    /// Generate shell configuration
     Init(Shell),
 }
 
@@ -46,7 +51,7 @@ pub struct CreateNewProjGroup {
 #[derive(Debug, Args)]
 pub struct ListProj {
     /// Proj group to list contents of
-    pub proj_group: String,
+    pub proj_group: Option<String>,
 }
 
 #[derive(Debug, Args)]
