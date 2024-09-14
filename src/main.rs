@@ -22,5 +22,6 @@ fn main() {
         Action::Create(create) => handle_create(projpath, create),
         Action::Setup(setup) => handle_setup(setup),
         Action::Init(init) => handle_init(init),
+        Action::Zip(zip) => handle_zip(projpath, zip),
     }
 }

@@ -4,18 +4,97 @@ use std::fs::{self, File};
 use std::io::Write;
 use std::path::Path;
 use std::process::exit;
+use std::process::Command;
+
+fn get_dir_contents(path: &str) -> Result<Vec<String>, std::io::Error> {
+    let path = Path::new(path);
+    match fs::read_dir(path) {
+        Ok(entries) => {
+            let mut names = Vec::new();
+            for entry in entries {
+                if let Ok(dir) = entry {
+                    if dir.path().is_dir() {
+                        let name_to_print = dir.file_name();
+                        names.push(name_to_print.into_string().unwrap());
+                    }
+                }
+            }
+            return Ok(names);
+        }
+        Err(e) => {
+            return Err(e);
+        }
+    }
+}
+
+fn search(names_in: Vec<String>, target: &String) -> String {
+    let mut names = names_in.clone();
+    if names.contains(&target) {
+        return target.clone();
+    } else {
+        let mut found = false;
+        let mut index = 1;
+        while !found {
+            let mut searchlist: Vec<String> = Vec::new();
+            let searchstr = &target[..index];
+            for name in &names {
+                if name.len() > index {
+                    if &name[..index] == searchstr {
+                        searchlist.push(name.clone());
+                    }
+                }
+            }
+            //             println!("{:?}", &searchlist);
+
+            if searchlist.len() == 0 {
+                break;
+            }
+
+            if index > target.len() - 1 {
+                if searchlist.len() == 1 {
+                    found = true;
+                } else {
+                    return "INSUFFICENT".to_string();
+                }
+            }
+
+            names = searchlist.clone();
+            index += 1;
+        }
+        if found {
+            names[0].clone()
+        } else {
+            "".to_string()
+        }
+    }
+}
 
 pub fn handle_goto(projpath: String, goto: GotoProj) {
-    let path = format!(
-        "{}/{}/{}",
-        projpath,
-        goto.proj_group,
-        goto.project.unwrap_or("".to_string())
-    );
-    if Path::new(&path).exists() {
-        println!("x cd {:?}", path);
+    if let Some(project) = goto.project {
+        let path = format!("{}/{}", projpath, goto.proj_group);
+        let names = get_dir_contents(path.as_str()).unwrap();
+        let out = search(names, &project);
+        if out == "" {
+            println!("Error: Proj group could not be found! : {}", project);
+            exit(1);
+        } else if out == "INSUFFICENT" {
+            println!("Error: More than 1 match exists! (add more letters)");
+            exit(1);
+        } else {
+            println!("x cd \"{}/{}/{}\"", projpath, goto.proj_group, out);
+        }
     } else {
-        println!("Error: Proj group or project does not exist");
+        let names = get_dir_contents(projpath.as_str()).unwrap();
+        let out = search(names, &goto.proj_group);
+        if out == "" {
+            println!(
+                "Error: Proj group could not be found! : {}",
+                goto.proj_group
+            );
+            exit(1);
+        } else {
+            println!("x cd \"{}/{}\"", projpath, out);
+        }
     }
 }
 
@@ -31,17 +110,20 @@ pub fn handle_list(projpath: String, list: ListProj) {
         path = Path::new(&projpath).join(&proj_to_list.unwrap());
     }
 
+    let mut maxlen = 10;
+    for name in get_dir_contents(path.to_str().unwrap()).unwrap() {
+        if name.len() > maxlen {
+            maxlen = name.len();
+        }
+    }
+
     match fs::read_dir(&path) {
         Ok(entries) => {
-            let mut maxlen = 10;
             let mut names = Vec::new();
             for entry in entries {
                 if let Ok(dir) = entry {
                     if dir.path().is_dir() {
                         let name_to_print = dir.file_name();
-                        if name_to_print.len() > maxlen {
-                            maxlen = name_to_print.len();
-                        }
                         names.push(name_to_print);
                     }
                 }
@@ -56,11 +138,8 @@ pub fn handle_list(projpath: String, list: ListProj) {
             }
             println!("{}", bot);
         }
-        Err(e) => {
-            println!(
-                "Error: No such proj group `{}`\n{e}",
-                list.proj_group.unwrap_or("Huh?".to_string())
-            );
+        Err(_e) => {
+            println!("Error: Proj group or project does not exist");
             exit(1)
         }
     }
@@ -91,7 +170,10 @@ pub fn handle_create(projpath: String, make: CreateNewProject) {
     let path = path.join(&name_of_project);
     match fs::create_dir(&path) {
         Ok(_) => (),
-        Err(e) => println!("Error: {e}"),
+        Err(e) => {
+            println!("Error: {e}");
+            exit(1);
+        }
     }
 
     println!("x cd {path:?}");
@@ -179,4 +261,35 @@ def --env {cmd} [ ...args ] {{
             exit(1)
         }
     }
+}
+
+pub fn handle_zip(projpath: String, zip: ZipProj) {
+    let zip_name = {
+        if zip.project_name.is_none() {
+            zip.proj_group.clone()
+        } else {
+            zip.project_name.clone().unwrap()
+        }
+    };
+
+    let path_to_zip = format!(
+        "{projpath}/{}/{}",
+        zip.proj_group,
+        zip.project_name.unwrap_or("".to_string())
+    );
+
+    if !Path::new(&path_to_zip).exists() {
+        println!("Error: Proj group or project does not exist");
+        exit(1);
+    }
+
+    println!("Zipping {path_to_zip} ...");
+    let _ = Command::new("zip")
+        .arg("-qr")
+        .arg(zip_name)
+        .arg(path_to_zip)
+        .spawn()
+        .expect("failed to zip")
+        .wait();
+    println!("Done :)");
 }

@@ -23,7 +23,7 @@ pub enum Action {
     /// Create a new project in specified proj group
     Create(CreateNewProject),
 
-    /// List all proj_groups or projects in specified proj group
+    /// List all proj groups or projects in specified proj group
     List(ListProj),
 
     /// Setup the proj command
@@ -31,6 +31,9 @@ pub enum Action {
 
     /// Generate shell configuration
     Init(Shell),
+
+    /// Compress a project or proj group into a zip file
+    Zip(ZipProj),
 }
 
 #[derive(Debug, Args)]
@@ -76,4 +79,13 @@ pub struct Shell {
 
     /// Name of command to use (Defaults to `proj`)
     pub cmd: Option<String>,
+}
+
+#[derive(Debug, Args)]
+pub struct ZipProj {
+    /// Proj group to zip
+    pub proj_group: String,
+
+    /// Project in proj group to zip
+    pub project_name: Option<String>,
 }
