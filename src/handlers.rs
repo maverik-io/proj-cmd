@@ -13,8 +13,7 @@ fn get_dir_contents(path: &str) -> Result<Vec<String>, std::io::Error> {
             let mut names = Vec::new();
             for dir in entries.flatten() {
                 if dir.path().is_dir() {
-                    let name_to_print = dir.file_name();
-                    names.push(name_to_print.into_string().unwrap());
+                    names.push(dir.file_name().to_string_lossy().to_string());
                 }
             }
             Ok(names)
@@ -23,49 +22,67 @@ fn get_dir_contents(path: &str) -> Result<Vec<String>, std::io::Error> {
     }
 }
 
-fn search(names_in: Vec<String>, target: &String) -> String {
-    let mut names = names_in.clone();
-    if names.contains(target) {
-        target.clone()
+// Byte-indexes into `target`/`name` (`&target[..index]`) previously panicked on any
+// non-ASCII character (not a char boundary) and on an empty `target` (`target.len() - 1`
+// underflow). Indexing by `.chars()` instead keeps this Unicode-safe.
+fn search(names_in: Vec<String>, target: &str) -> String {
+    if target.is_empty() {
+        return "".to_string();
+    }
+    let mut names = names_in;
+    if names.iter().any(|n| n == target) {
+        return target.to_string();
+    }
+
+    let target_char_count = target.chars().count();
+    let mut found = false;
+    let mut index = 1;
+    while !found {
+        let mut searchlist: Vec<String> = Vec::new();
+        let searchstr: String = target.chars().take(index).collect();
+
+        for name in &names {
+            let name_prefix: String = name.chars().take(index).collect();
+            if name.chars().count() > index && name_prefix == searchstr {
+                searchlist.push(name.clone());
+            }
+        }
+
+        if searchlist.is_empty() {
+            break;
+        }
+
+        if index >= target_char_count {
+            if searchlist.len() == 1 {
+                found = true;
+            } else {
+                return "INSUFFICENT".to_string();
+            }
+        }
+
+        names = searchlist;
+        index += 1;
+    }
+    if found {
+        names[0].clone()
     } else {
-        let mut found = false;
-        let mut index = 1;
-        while !found {
-            let mut searchlist: Vec<String> = Vec::new();
-            let searchstr = &target[..index];
-            for name in &names {
-                if name.len() > index && &name[..index] == searchstr {
-                    searchlist.push(name.clone());
-                }
-            }
-
-            if searchlist.is_empty() {
-                break;
-            }
-
-            if index > target.len() - 1 {
-                if searchlist.len() == 1 {
-                    found = true;
-                } else {
-                    return "INSUFFICENT".to_string();
-                }
-            }
-
-            names = searchlist.clone();
-            index += 1;
-        }
-        if found {
-            names[0].clone()
-        } else {
-            "".to_string()
-        }
+        "".to_string()
     }
 }
 
 pub fn handle_goto(projpath: String, goto: GotoProj) {
     if let Some(project) = goto.project {
         let path = format!("{}/{}", projpath, goto.proj_group);
-        let names = get_dir_contents(path.as_str()).unwrap();
+        let names = match get_dir_contents(&path) {
+            Ok(n) => n,
+            Err(_) => {
+                println!(
+                    "Error: Proj group could not be found! : {}",
+                    goto.proj_group
+                );
+                exit(1);
+            }
+        };
         let out = search(names, &project);
         if out.is_empty() {
             println!("Error: Proj group could not be found! : {project}");
@@ -77,7 +94,13 @@ pub fn handle_goto(projpath: String, goto: GotoProj) {
             println!("x cd \"{}/{}/{}\"", projpath, goto.proj_group, out);
         }
     } else {
-        let names = get_dir_contents(projpath.as_str()).unwrap();
+        let names = match get_dir_contents(&projpath) {
+            Ok(n) => n,
+            Err(e) => {
+                eprintln!("proj-cmd: goto: {e}");
+                exit(1);
+            }
+        };
         let out = search(names, &goto.proj_group);
         if out.is_empty() {
             println!(
@@ -92,48 +115,39 @@ pub fn handle_goto(projpath: String, goto: GotoProj) {
 }
 
 pub fn handle_list(projpath: String, list: ListProj) {
-    let path;
-    let proj_to_list = list.proj_group.clone();
-    let chr;
-    if proj_to_list.is_none() {
-        chr = '󰾂';
-        path = Path::new(&projpath).join("");
-    } else {
-        chr = '󰆧';
-        path = Path::new(&projpath).join(proj_to_list.unwrap());
-    }
+    let (chr, path) = match list.proj_group {
+        None => ('󰾂', Path::new(&projpath).join("")),
+        Some(proj_to_list) => ('󰆧', Path::new(&projpath).join(proj_to_list)),
+    };
 
-    let mut maxlen = 10;
-    for name in get_dir_contents(path.to_str().unwrap()).unwrap() {
-        if name.len() > maxlen {
-            maxlen = name.len();
-        }
-    }
-
-    match fs::read_dir(&path) {
-        Ok(entries) => {
-            let mut names = Vec::new();
-            for dir in entries.flatten() {
-                if dir.path().is_dir() {
-                    let name_to_print = dir.file_name();
-                    names.push(name_to_print);
-                }
-            }
-
-            let bot = format!("╰{}╯", "─".repeat(maxlen + 4));
-            let top = format!("╭{}╮", "─".repeat(maxlen + 4));
-
-            println!("{top}");
-            for name in names {
-                println!("│ {chr} {:<maxlen$} │", name.to_str().unwrap());
-            }
-            println!("{bot}");
-        }
-        Err(_e) => {
+    // Read the directory once: the previous version computed `maxlen` via a
+    // separate get_dir_contents(...).unwrap() call *before* this error-handled
+    // read, so a missing proj group panicked instead of hitting the message below.
+    let entries = match fs::read_dir(&path) {
+        Ok(entries) => entries,
+        Err(_) => {
             eprintln!("proj-cmd: list: Proj group or project does not exist");
-            exit(1)
+            exit(1);
+        }
+    };
+
+    let mut names = Vec::new();
+    for dir in entries.flatten() {
+        if dir.path().is_dir() {
+            names.push(dir.file_name().to_string_lossy().to_string());
         }
     }
+
+    let maxlen = names.iter().map(|n| n.len()).max().unwrap_or(0).max(10);
+
+    let bot = format!("╰{}╯", "─".repeat(maxlen + 4));
+    let top = format!("╭{}╮", "─".repeat(maxlen + 4));
+
+    println!("{top}");
+    for name in &names {
+        println!("│ {chr} {name:<maxlen$} │");
+    }
+    println!("{bot}");
 }
 
 pub fn handle_make(projpath: String, make: CreateNewProjGroup) {
@@ -179,42 +193,50 @@ pub fn handle_create(projpath: String, make: CreateNewProject) {
 }
 
 pub fn handle_setup(setup: SetupProj) {
-    let path = config_dir().unwrap().join("proj-cmd");
+    let Some(path) = config_dir().map(|d| d.join("proj-cmd")) else {
+        eprintln!("proj-cmd: setup: could not determine config directory");
+        exit(1);
+    };
 
-    if setup.proj_home_path.is_none() {
+    let Some(proj_home) = setup.proj_home_path else {
         let projrc_path = path.join("projrc");
 
         if projrc_path.exists() {
-            let proj_home = fs::read_to_string(projrc_path).unwrap();
-            let proj_home = proj_home.trim();
-            println!("Current proj_home_path = {proj_home}");
+            match fs::read_to_string(&projrc_path) {
+                Ok(proj_home) => println!("Current proj_home_path = {}", proj_home.trim()),
+                Err(e) => {
+                    eprintln!("proj-cmd: setup: {e}");
+                    exit(1);
+                }
+            }
         } else {
             eprintln!("proj-cmd: setup: proj_home has not been configured yet");
             exit(1);
         }
-    } else {
-        let proj_home = setup.proj_home_path.unwrap();
-        let proj_home = Path::new(&proj_home);
-        let _ = fs::create_dir(&path);
-        let mut file = File::create(path.join("projrc")).unwrap();
-        match write!(file, "{}", proj_home.display()) {
-            Ok(_) => {
-                println!("set proj_home to `{proj_home:?}`");
-            }
-            Err(e) => {
-                eprintln!("proj-cmd: setup: {e}");
-                exit(1);
-            }
+        return;
+    };
+    let proj_home = Path::new(&proj_home);
+    let _ = fs::create_dir(&path);
+    let mut file = match File::create(path.join("projrc")) {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("proj-cmd: setup: {e}");
+            exit(1);
+        }
+    };
+    match write!(file, "{}", proj_home.display()) {
+        Ok(_) => {
+            println!("set proj_home to `{proj_home:?}`");
+        }
+        Err(e) => {
+            eprintln!("proj-cmd: setup: {e}");
+            exit(1);
         }
     }
 }
 
 pub fn handle_init(init: Shell) {
-    let cmd = if init.cmd.is_none() {
-        "proj"
-    } else {
-        &init.cmd.unwrap()
-    };
+    let cmd = init.cmd.as_deref().unwrap_or("proj");
 
     match init.shell.as_str() {
         "zsh" | "bash" => {

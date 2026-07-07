@@ -7,7 +7,12 @@ use args::{Action, ProjArgs};
 use handlers::*;
 
 fn main() {
-    let config_path = dirs::config_dir().unwrap().join("proj-cmd/projrc");
+    let Some(config_dir) = dirs::config_dir() else {
+        eprintln!("proj-cmd: could not determine config directory");
+        std::process::exit(1);
+    };
+    let config_path = config_dir.join("proj-cmd/projrc");
+
     if let Ok(projpath) = fs::read_to_string(&config_path) {
         let args = ProjArgs::parse();
 
@@ -21,13 +26,21 @@ fn main() {
             Action::Zip(zip) => handle_zip(projpath, zip),
         }
     } else {
-        let home_path = dirs::home_dir().unwrap();
-        let home_path = home_path.to_str().unwrap();
+        let Some(home_path) = dirs::home_dir() else {
+            eprintln!("proj-cmd: could not determine home directory");
+            std::process::exit(1);
+        };
+        let home_path = home_path.to_string_lossy().to_string();
 
         println!("Cannot find config file. Creating...");
-        fs::create_dir_all(dirs::config_dir().unwrap().join("proj-cmd"))
-            .expect("Failed to create dirs");
-        fs::write(config_path, home_path).expect("Failed to create files");
+        if let Err(e) = fs::create_dir_all(config_dir.join("proj-cmd")) {
+            eprintln!("proj-cmd: failed to create config directory: {e}");
+            std::process::exit(1);
+        }
+        if let Err(e) = fs::write(&config_path, &home_path) {
+            eprintln!("proj-cmd: failed to write config file: {e}");
+            std::process::exit(1);
+        }
         println!("Project root set to home dir, Use proj setup <path> to update ");
     }
 }

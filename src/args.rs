@@ -3,9 +3,9 @@ use clap::{Args, Parser, Subcommand};
 #[derive(Debug, Parser)]
 #[command(author = "Joseph Chacko <josephchacko2006@gmail.com>")]
 #[command(version)]
-#[command(
-    help_template = "{name} v{version}\n{author-section} {about-section}\n{usage-heading} {usage} \n\n{all-args}"
-)]
+// #[command(
+//     help_template = "{name} v{version}\n{author-section} {about-section}\n{usage-heading} {usage} \n\n{all-args}"
+// )]
 #[command(about, long_about = None)]
 pub struct ProjArgs {
     #[clap(subcommand)]
